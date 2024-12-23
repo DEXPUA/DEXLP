@@ -11,24 +11,24 @@ console.log('Бот запущено');
 
 // Обробка команди /start
 bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  const name = msg.from.first_name || 'Користувач';
+    const chatId = msg.chat.id;
+    const name = msg.from.first_name || 'Користувач';
 
-  // Відповідь на команду
-  bot.sendMessage(chatId, `Привіт, ${name}! Це твій Telegram бот!`);
+    // Відповідь на команду
+    bot.sendMessage(chatId, `Привіт, ${name}! Це твій Telegram бот!`);
 });
 
-// Логування інших повідомлень
+// Логування повідомлень
 bot.on('message', (msg) => {
-  console.log(`Повідомлення від ${msg.from.first_name}: ${msg.text}`);
+    console.log(`Повідомлення від ${msg.from.first_name}: ${msg.text}`);
 });
 
 // Обробка помилок
 bot.on('polling_error', (error) => {
-  console.error('Помилка polling:', error.message);
+    console.error('Помилка polling:', error.message);
 });
 
-// Для серверного розгортання (наприклад, на Vercel)
-module.exports = async (req, res) => {
-  res.status(200).send('Telegram бот працює');
-}; 
+// Експортуємо для Vercel
+module.exports = (req, res) => {
+    res.status(200).send("Telegram бот працює!");
+};
