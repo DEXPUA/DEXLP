@@ -1,67 +1,12 @@
 {
   "version": 2,
-  "functions": {
-    "api/**.js": {
-      "maxDuration": 10,
-      "memory": 1024,
-      "runtime": "nodejs18.x",
-      "regions": ["sfo1", "iad1"]
-    },
-    "api/welcome.js": {
-      "maxDuration": 15,
-      "memory": 2048,
-      "runtime": "nodejs18.x"
-    },
-    "api/commands.js": {
-      "maxDuration": 15,
-      "memory": 2048,
-      "runtime": "nodejs18.x"
-    }
-  },
-  "env": {
-    "TOKEN": "your-telegram-bot-token",
-    "DATABASE_URL": "your-database-url",
-    "SECRET_KEY": "your-secret-key"
-  },
   "builds": [
     {
       "src": "index.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "api/**.js",
-      "use": "@vercel/node"
     }
   ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1.js"
-    },
-    {
-      "src": "/",
-      "dest": "/api/welcome.js"
-    },
-    {
-      "src": "/start",
-      "dest": "/api/commands.js"
-    }
-  ],
-  "http": {
-    "port": 3000,
-    "timeout": 30
-  },
-  "meta": {
-    "author": "Vadim",
-    "description": "Telegram Bot Backend"
-  },
-  "files": [
-    {
-      "source": "public/**/*",
-      "destination": "public/"
-    }
-  ],
-  "secrets": [
-    "your-secret-key"
-  ]
+  "env": {
+    "TOKEN": "7766962148:AAHa6D3Tdwdhj1c09bEBq0oZAdM8MR3NlNo"  // Вставте ваш токен сюди
+  }
 }
