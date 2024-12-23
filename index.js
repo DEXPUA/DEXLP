@@ -31,4 +31,4 @@ bot.on('polling_error', (error) => {
 // Для серверного розгортання (наприклад, на Vercel)
 module.exports = async (req, res) => {
   res.status(200).send('Telegram бот працює');
-};
+}; 
