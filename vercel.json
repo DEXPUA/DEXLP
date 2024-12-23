@@ -8,12 +8,8 @@
   ],
   "routes": [
     {
-      "src": "/",
-      "dest": "index.js"
+      "src": "/(.*)",
+      "dest": "/index.js"
     }
-  ],
-  "env": {
-    "BOT_TOKEN": "7766962148:AAHa6D3Tdwdhj1c09bEBq0oZAdM8MR3NlNo",
-    "DB_PATH": "./botdata.db"
-  }
+  ]
 }
