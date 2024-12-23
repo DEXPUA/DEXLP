@@ -1,143 +1,113 @@
 const TelegramBot = require('node-telegram-bot-api');
 const sqlite3 = require('sqlite3').verbose();
-const { open } = require('sqlite');
-const schedule = require('node-schedule');
+const cron = require('node-cron');
 
-// Ваш токен бота
-const token = 'YOUR_BOT_TOKEN';  // Замініть на ваш токен
+// Токен вашого бота
+const token = '7766962148:AAHa6D3Tdwdhj1c09bEBq0oZAdM8MR3NlNo';
 
-// Ініціалізація бота з параметром polling
+// Ініціалізація бота
 const bot = new TelegramBot(token, { polling: true });
 
-// Підключення до SQLite бази даних
-let db;
-open({
-  filename: './dexlp.db',
-  driver: sqlite3.Database
-}).then(database => {
-  db = database;
-  console.log('Connected to SQLite database');
-  
-  // Створення таблиць при першому запуску
-  db.run(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    chatId INTEGER UNIQUE,
-    balance INTEGER DEFAULT 1000,
-    tasksCompleted INTEGER DEFAULT 0
-  )`);
-}).catch(err => console.error(err));
+// Ініціалізація бази даних
+let db = new sqlite3.Database('./botdata.db');
 
-// Функція для додавання нового користувача
-async function addUser(chatId) {
-  const stmt = db.prepare('INSERT OR IGNORE INTO users (chatId) VALUES (?)');
-  stmt.run(chatId);
-  stmt.finalize();
-}
+// Створення таблиці для збереження балансу користувачів
+db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER DEFAULT 0)");
 
 // Функція для отримання балансу користувача
-async function getUserBalance(chatId) {
+const getUserBalance = (userId) => {
   return new Promise((resolve, reject) => {
-    db.get('SELECT balance FROM users WHERE chatId = ?', [chatId], (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(row ? row.balance : 0);
-      }
+    db.get("SELECT balance FROM users WHERE id = ?", [userId], (err, row) => {
+      if (err) reject(err);
+      resolve(row ? row.balance : 0);
     });
   });
-}
+};
 
 // Функція для оновлення балансу користувача
-async function updateUserBalance(chatId, amount) {
+const updateUserBalance = (userId, amount) => {
   return new Promise((resolve, reject) => {
-    db.run('UPDATE users SET balance = balance + ? WHERE chatId = ?', [amount, chatId], function(err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(this.changes);
-      }
+    db.run("INSERT OR REPLACE INTO users (id, balance) VALUES (?, ?)", [userId, amount], (err) => {
+      if (err) reject(err);
+      resolve();
     });
   });
-}
+};
 
-// Обробка команди /start
-bot.onText(/\/start/, (msg) => {
+// Привітальне повідомлення
+bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
-  const name = msg.from.first_name || 'Користувач';
+  const username = msg.from.username;
 
-  // Додавання нового користувача в базу
-  addUser(chatId);
-
-  // Привітальне повідомлення
-  bot.sendMessage(chatId, `Привіт, ${name}! Це твій Telegram бот. Вибери команду для взаємодії.`);
-  
-  // Кнопки
-  const options = {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: 'Баланс', callback_data: 'balance' }],
-        [{ text: 'Завдання', callback_data: 'tasks' }],
-        [{ text: 'Друзі', callback_data: 'friends' }]
-      ]
-    }
-  };
-  bot.sendMessage(chatId, 'Що хочеш зробити?', options);
-});
-
-// Обробка кнопок
-bot.on('callback_query', async (query) => {
-  const chatId = query.message.chat.id;
-  const data = query.data;
-
-  switch (data) {
-    case 'balance':
-      // Логіка балансу
-      const balance = await getUserBalance(chatId);
-      bot.sendMessage(chatId, `Твій баланс: ${balance} DEXP`);
-      break;
-    case 'tasks':
-      // Логіка завдань
-      bot.sendMessage(chatId, 'Завдання: Пройти тест на знання про криптовалюти!');
-      break;
-    case 'friends':
-      // Логіка друзів
-      bot.sendMessage(chatId, 'Ти не маєш друзів, але можеш запросити нових!');
-      break;
-    default:
-      bot.sendMessage(chatId, 'Невідома команда');
+  try {
+    const balance = await getUserBalance(chatId);
+    bot.sendMessage(chatId, `Привіт, @${username}! Ваш баланс: ${balance} DEXP`);
+  } catch (err) {
+    bot.sendMessage(chatId, 'Виникла помилка при отриманні балансу.');
   }
 });
 
-// Реалізація іншої команди
-bot.onText(/\/help/, (msg) => {
+// Команда для отримання балансу
+bot.onText(/\/balance/, async (msg) => {
   const chatId = msg.chat.id;
-  bot.sendMessage(chatId, 'Щоб почати роботу, використовуйте команду /start.');
+  try {
+    const balance = await getUserBalance(chatId);
+    bot.sendMessage(chatId, `Ваш баланс: ${balance} DEXP`);
+  } catch (err) {
+    bot.sendMessage(chatId, 'Виникла помилка при отриманні балансу.');
+  }
 });
 
-// Функція для автоматичного оновлення балансу кожні 2 години
-schedule.scheduleJob('0 */2 * * *', async () => {
-  console.log('Баланс оновлений для всіх користувачів!');
-  
-  // Додаємо 100 DEXP кожному користувачу
-  db.each('SELECT chatId FROM users', async (err, row) => {
-    if (err) {
-      console.error(err);
-      return;
-    }
-    await updateUserBalance(row.chatId, 100);
+// Команда для отримання винагороди (наприклад, 100 DEXP кожні 2 години)
+cron.schedule('0 */2 * * *', async () => {
+  // Перебір всіх користувачів і оновлення їх балансу
+  db.each("SELECT id FROM users", async (err, row) => {
+    if (err) throw err;
+    const currentBalance = await getUserBalance(row.id);
+    const newBalance = currentBalance + 100;
+    await updateUserBalance(row.id, newBalance);
+    bot.sendMessage(row.id, `Ваш баланс був оновлений на 100 DEXP. Тепер: ${newBalance} DEXP`);
   });
 });
 
-// Збір статистики кожні 24 години
-schedule.scheduleJob('0 0 * * *', () => {
-  console.log('Щоденна статистика...');
-  // Логіка збору статистики
-  // Наприклад, підрахунок кількості користувачів
-  db.get('SELECT COUNT(*) AS count FROM users', (err, row) => {
+// Лідерборд: виведення топ 10 користувачів з найвищим балансом
+bot.onText(/\/leaderboard/, async (msg) => {
+  const chatId = msg.chat.id;
+  db.all("SELECT username, balance FROM users ORDER BY balance DESC LIMIT 10", (err, rows) => {
     if (err) {
-      console.error(err);
+      bot.sendMessage(chatId, 'Не вдалося отримати лідерборд.');
       return;
     }
-    console.log(`Кількість користувачів: ${row.count}`);
+    let leaderboard = 'Топ 10 користувачів:\n';
+    rows.forEach((row, index) => {
+      leaderboard += `${index + 1}. @${row.username} - ${row.balance} DEXP\n`;
+    });
+    bot.sendMessage(chatId, leaderboard);
   });
 });
+
+// Створення нового користувача, якщо він не існує
+bot.on('new_chat_members', (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.new_chat_member.id;
+  const username = msg.new_chat_member.username;
+
+  db.get("SELECT id FROM users WHERE id = ?", [userId], (err, row) => {
+    if (err) {
+      bot.sendMessage(chatId, 'Не вдалося перевірити користувача в базі даних.');
+      return;
+    }
+    if (!row) {
+      db.run("INSERT INTO users (id, username) VALUES (?, ?)", [userId, username], (err) => {
+        if (err) {
+          bot.sendMessage(chatId, 'Не вдалося додати користувача в базу даних.');
+        } else {
+          bot.sendMessage(chatId, `Вітаємо @${username}, ви зареєстровані в боте!`);
+        }
+      });
+    }
+  });
+});
+
+// Запуск бота
+console.log('Bot is running...');
