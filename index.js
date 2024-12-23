@@ -1,24 +1,34 @@
 const TelegramBot = require('node-telegram-bot-api');
 
-// Заміни на новий токен
+// Встав свій токен тут
 const token = '7766962148:AAHa6D3Tdwdhj1c09bEBq0oZAdM8MR3NlNo';
 
-// Створюємо нового бота
+// Створюємо бота
 const bot = new TelegramBot(token, { polling: true });
+
+// Логування запуску бота
+console.log('Бот запущено');
 
 // Обробка команди /start
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  bot.sendMessage(chatId, 'Привіт! Це твій бот!');
+  const name = msg.from.first_name || 'Користувач';
+
+  // Відповідь на команду
+  bot.sendMessage(chatId, `Привіт, ${name}! Це твій Telegram бот!`);
 });
 
-// Обробка команди /help
-bot.onText(/\/help/, (msg) => {
-  const chatId = msg.chat.id;
-  bot.sendMessage(chatId, 'Це твій бот. Напиши /start, щоб почати!');
+// Логування інших повідомлень
+bot.on('message', (msg) => {
+  console.log(`Повідомлення від ${msg.from.first_name}: ${msg.text}`);
 });
 
-// Експортуємо функцію для обробки запитів на Vercel
-module.exports = (req, res) => {
-  res.status(200).send('Bot is working');
+// Обробка помилок
+bot.on('polling_error', (error) => {
+  console.error('Помилка polling:', error.message);
+});
+
+// Для серверного розгортання (наприклад, на Vercel)
+module.exports = async (req, res) => {
+  res.status(200).send('Telegram бот працює');
 };
