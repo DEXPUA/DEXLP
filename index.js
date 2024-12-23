@@ -2,14 +2,21 @@ const TelegramBot = require('node-telegram-bot-api');
 const sqlite3 = require('sqlite3').verbose();
 const cron = require('node-cron');
 
-// Токен вашого бота
-const token = '7766962148:AAHa6D3Tdwdhj1c09bEBq0oZAdM8MR3NlNo';
+// Отримуємо токен з середовища (встановлений у vercel.json)
+const token = process.env.BOT_TOKEN;
+const dbPath = process.env.DB_PATH;
 
 // Ініціалізація бота
 const bot = new TelegramBot(token, { polling: true });
 
 // Ініціалізація бази даних
-let db = new sqlite3.Database('./botdata.db');
+let db = new sqlite3.Database(dbPath, (err) => {
+  if (err) {
+    console.error("Error opening database:", err);
+  } else {
+    console.log("Database opened successfully");
+  }
+});
 
 // Створення таблиці для збереження балансу користувачів
 db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER DEFAULT 0)");
