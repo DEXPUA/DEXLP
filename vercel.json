@@ -1,166 +1,67 @@
 {
   "version": 2,
-  "name": "dexlp-bot",
+  "functions": {
+    "api/**.js": {
+      "maxDuration": 10,
+      "memory": 1024,
+      "runtime": "nodejs18.x",
+      "regions": ["sfo1", "iad1"]
+    },
+    "api/welcome.js": {
+      "maxDuration": 15,
+      "memory": 2048,
+      "runtime": "nodejs18.x"
+    },
+    "api/commands.js": {
+      "maxDuration": 15,
+      "memory": 2048,
+      "runtime": "nodejs18.x"
+    }
+  },
+  "env": {
+    "TOKEN": "your-telegram-bot-token",
+    "DATABASE_URL": "your-database-url",
+    "SECRET_KEY": "your-secret-key"
+  },
   "builds": [
     {
       "src": "index.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/**.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/",
-      "dest": "/index.js"
+      "src": "/api/(.*)",
+      "dest": "/api/$1.js"
     },
-    {
-      "src": "/api/.*",
-      "dest": "/api/$1"
-    }
-  ],
-  "env": {
-    "TOKEN": "your-telegram-bot-token",
-    "DATABASE_URL": "your-database-url",
-    "NODE_ENV": "production",
-    "PORT": "3000",
-    "DEBUG": "true"
-  },
-  "build": {
-    "env": {
-      "NODE_ENV": "production"
-    }
-  },
-  "functions": {
-    "api/**.js": {
-      "maxDuration": 10,
-      "memory": 1024
-    }
-  },
-  "regions": ["sfo1", "iad1", "lhr1"],
-  "public": "public",
-  "cleanUrls": true,
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
-    }
-  ],
-  "redirects": [
-    {
-      "source": "/old-route",
-      "destination": "/new-route",
-      "permanent": true
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/path-to-rewrite",
-      "destination": "/new-destination"
-    }
-  ],
-  "static": {
-    "max-age": 3600
-  },
-  "alias": "dexlp-bot.vercel.app",
-  "github": {
-    "enabled": true,
-    "repository": "your-repository-name"
-  },
-  "deployments": [
-    {
-      "source": "main",
-      "target": "production",
-      "env": {
-        "NODE_ENV": "production"
-      },
-      "version": "1.0.0"
-    },
-    {
-      "source": "develop",
-      "target": "staging",
-      "env": {
-        "NODE_ENV": "development"
-      },
-      "version": "1.0.1"
-    }
-  ],
-  "features": {
-    "canary": true,
-    "new-logs": true
-  },
-  "analytics": {
-    "enabled": true
-  },
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "Strict-Transport-Security",
-          "value": "max-age=31536000; includeSubDomains; preload"
-        }
-      ]
-    }
-  ],
-  "compression": {
-    "enabled": true
-  },
-  "logging": {
-    "enabled": true,
-    "level": "info"
-  },
-  "functions": {
-    "api/**.js": {
-      "maxDuration": 10,
-      "memory": 1024
-    }
-  },
-  "env": {
-    "NODE_ENV": "production",
-    "API_KEY": "your-api-key",
-    "DB_URI": "your-database-uri"
-  },
-  "routes": [
     {
       "src": "/",
-      "dest": "/index.js"
+      "dest": "/api/welcome.js"
     },
     {
-      "src": "/api/*",
-      "dest": "/api/$1"
+      "src": "/start",
+      "dest": "/api/commands.js"
     }
   ],
-  "onError": {
-    "status": "500",
-    "response": "Internal server error. Please try again later."
+  "http": {
+    "port": 3000,
+    "timeout": 30
   },
-  "onRequest": {
-    "middleware": [
-      "verifyAuthToken",
-      "logRequests"
-    ]
+  "meta": {
+    "author": "Vadim",
+    "description": "Telegram Bot Backend"
   },
-  "retries": 3,
-  "cache": {
-    "enabled": true,
-    "maxAge": 300
-  },
+  "files": [
+    {
+      "source": "public/**/*",
+      "destination": "public/"
+    }
+  ],
   "secrets": [
-    {
-      "name": "DB_PASSWORD",
-      "value": "your-database-password"
-    },
-    {
-      "name": "API_KEY",
-      "value": "your-api-key"
-    }
+    "your-secret-key"
   ]
 }
