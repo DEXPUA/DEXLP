@@ -6,7 +6,14 @@
       "use": "@vercel/node"
     }
   ],
+  "routes": [
+    {
+      "src": "/",
+      "dest": "index.js"
+    }
+  ],
   "env": {
-    "TOKEN": "7766962148:AAHa6D3Tdwdhj1c09bEBq0oZAdM8MR3NlNo"  // Вставте ваш токен сюди
+    "BOT_TOKEN": "7766962148:AAHa6D3Tdwdhj1c09bEBq0oZAdM8MR3NlNo",
+    "DB_PATH": "./botdata.db"
   }
 }
