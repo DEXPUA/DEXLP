@@ -1,16 +1,16 @@
 {
   "name": "telegram-bot",
   "version": "1.0.0",
-  "description": "Telegram Bot deployed on Vercel",
+  "description": "Простий Telegram бот для деплою на Vercel",
   "main": "index.js",
-  "dependencies": {
-    "node-telegram-bot-api": "^0.54.0"
-  },
-  "devDependencies": {},
   "scripts": {
     "start": "node index.js"
   },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.61.0"
+  },
   "engines": {
-    "node": "14.x"
-  }
+    "node": ">=16.0.0"
+  },
+  "license": "ISC"
 }
