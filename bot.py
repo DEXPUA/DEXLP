@@ -1,110 +1,160 @@
-import random
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+import logging
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext
+import sqlite3
+from datetime import datetime, timedelta
 
-TOKEN = "8008430295:AAFATrn-vbY1365zwKEYA_CTW5lxRfhdAG8"  # ваш токен
+# Підключення до бази даних
+conn = sqlite3.connect('database.db')
+cursor = conn.cursor()
 
-# Дані користувачів та промокоди
-users_data = {}
-promo_codes = {
-    "4KS2EK66": {"bonus": 1505, "activations": 100},
-    "6ZWOYE84": {"bonus": 43548, "activations": 100},
-    "KNTFCCXI": {"bonus": 8412, "activations": 100},
-    "B9PJSECN": {"bonus": 19140, "activations": 100},
-    # Додайте інші промокоди тут...
-}
+# Створення таблиць, якщо вони не існують
+cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    balance INTEGER DEFAULT 0,
+                    referral_code TEXT,
+                    last_bonus_time TEXT,
+                    vip INTEGER DEFAULT 0,
+                    friends TEXT DEFAULT ""
+                    )''')
 
-# Функція для старту
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in users_data:
-        users_data[user_id] = {'balance': 0, 'promo_used': set(), 'vip': False, 'friends': set()}
-    keyboard = [
-        [InlineKeyboardButton("Balance", callback_data='balance')],
-        [InlineKeyboardButton("Promo Code", callback_data='promo')],
-        [InlineKeyboardButton("Leaderboard", callback_data='leaderboard')],
-        [InlineKeyboardButton("VIP Status", callback_data='vip')],
-        [InlineKeyboardButton("My Friends", callback_data='friends')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Welcome to DEXP bot! Choose an option below:", reply_markup=reply_markup)
+# Логування
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Перевірка балансу
-async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    balance = users_data[user_id]['balance']
-    await update.callback_query.edit_message_text(f"Your balance: {balance} DEXP")
+# Основні функції
 
-# Використання промокоду
-async def promo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    await update.callback_query.edit_message_text("Enter your promo code:")
+def start(update: Update, context: CallbackContext) -> None:
+    user_id = update.message.from_user.id
+    username = update.message.from_user.username
+    referral_code = update.message.text.split()[1] if len(update.message.text.split()) > 1 else None
 
-async def handle_promo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    code = update.message.text.upper()
-    if code in promo_codes and promo_codes[code]['activations'] > 0 and code not in users_data[user_id]['promo_used']:
-        bonus = promo_codes[code]['bonus']
-        users_data[user_id]['balance'] += bonus
-        users_data[user_id]['promo_used'].add(code)
-        promo_codes[code]['activations'] -= 1
-        await update.message.reply_text(f"Promo code activated! You received {bonus} DEXP.")
+    # Якщо користувач вже є в базі даних
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+
+    if not user:
+        # Додаємо нового користувача
+        code = str(user_id) + 'REF'  # Генеруємо реферальний код
+        cursor.execute("INSERT INTO users (id, username, referral_code) VALUES (?, ?, ?)", (user_id, username, code))
+        conn.commit()
+        update.message.reply_text(f"Вітаємо! Ви успішно зареєстровані. Ваш реферальний код: {code}")
+
+    if referral_code:
+        # Логіка для реферального коду
+        cursor.execute("SELECT id FROM users WHERE referral_code = ?", (referral_code,))
+        referrer = cursor.fetchone()
+
+        if referrer:
+            cursor.execute("UPDATE users SET balance = balance + 500 WHERE id = ?", (referrer[0],))
+            cursor.execute("UPDATE users SET balance = balance + 100 WHERE id = ?", (user_id,))
+            conn.commit()
+            update.message.reply_text(f"Ви зареєструвались через реферальний код! Ви отримали бонус 100 DEXP. Ваш реферал отримав 500 DEXP!")
+        else:
+            update.message.reply_text("Невірний реферальний код.")
     else:
-        await update.message.reply_text("Invalid or expired promo code.")
+        update.message.reply_text("Вітаємо! Ви успішно зареєстровані.")
 
-# Лідерборд
-async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    leaderboard = sorted(users_data.items(), key=lambda x: x[1]['balance'], reverse=True)
-    leaderboard_text = "Leaderboard:\n"
-    for idx, (user_id, data) in enumerate(leaderboard[:10]):
-        username = f"User {user_id}"
-        leaderboard_text += f"{idx+1}. {username} - {data['balance']} DEXP\n"
-    await update.callback_query.edit_message_text(leaderboard_text)
+def vip(update: Update, context: CallbackContext) -> None:
+    user_id = update.message.from_user.id
+    cursor.execute("SELECT vip FROM users WHERE id = ?", (user_id,))
+    vip_status = cursor.fetchone()
 
-# ВІП статус
-async def vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if users_data[user_id]['balance'] >= 10000:
-        users_data[user_id]['vip'] = True
-        await update.callback_query.edit_message_text("Congratulations! You have VIP status.")
+    if vip_status and vip_status[0] == 1:
+        update.message.reply_text("Ви вже маєте VIP статус!")
     else:
-        await update.callback_query.edit_message_text("You need at least 10,000 DEXP to get VIP status.")
+        # Даємо VIP статус за певну кількість DEXP або умовами
+        cursor.execute("UPDATE users SET vip = 1 WHERE id = ?", (user_id,))
+        conn.commit()
+        update.message.reply_text("Вітаємо! Ви отримали VIP статус!")
 
-# Друзья
-async def friends(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    friends = users_data[user_id]['friends']
-    if friends:
-        friends_text = "Your Friends:\n"
-        for friend_id in friends:
-            friends_text += f"- User {friend_id}\n"
-        await update.callback_query.edit_message_text(friends_text)
+def add_friend(update: Update, context: CallbackContext) -> None:
+    user_id = update.message.from_user.id
+    friend_id = int(context.args[0])
+
+    # Перевірка чи є друг в базі даних
+    cursor.execute("SELECT * FROM users WHERE id = ?", (friend_id,))
+    friend = cursor.fetchone()
+
+    if not friend:
+        update.message.reply_text("Цей користувач не існує в системі!")
+        return
+
+    cursor.execute("SELECT friends FROM users WHERE id = ?", (user_id,))
+    friends = cursor.fetchone()[0]
+    
+    # Додавання друга до списку
+    new_friends = friends + f"{friend_id}, " if friends else f"{friend_id}, "
+    cursor.execute("UPDATE users SET friends = ? WHERE id = ?", (new_friends, user_id))
+    conn.commit()
+
+    update.message.reply_text(f"Користувач {friend_id} успішно доданий у ваш список друзів!")
+
+def leaderboard(update: Update, context: CallbackContext) -> None:
+    # Підключення до бази даних і отримання топ 10 користувачів
+    cursor.execute("SELECT username, balance FROM users ORDER BY balance DESC LIMIT 10")
+    top_users = cursor.fetchall()
+
+    # Формування повідомлення з лідерами
+    leaderboard_msg = "Лідери:\n"
+    for idx, user in enumerate(top_users, 1):
+        leaderboard_msg += f"{idx}. {user[0]} - {user[1]} DEXP\n"
+
+    update.message.reply_text(leaderboard_msg)
+
+def retro_bonus(update: Update, context: CallbackContext) -> None:
+    user_id = update.message.from_user.id
+    current_time = datetime.now()
+
+    # Перевірка, коли користувач востаннє отримував бонус
+    cursor.execute("SELECT last_bonus_time FROM users WHERE id = ?", (user_id,))
+    last_bonus = cursor.fetchone()
+
+    if last_bonus:
+        last_bonus_time = datetime.strptime(last_bonus[0], "%Y-%m-%d %H:%M:%S")
+        if current_time - last_bonus_time >= timedelta(hours=24):
+            # Нарахування бонусу
+            cursor.execute("UPDATE users SET balance = balance + 100 WHERE id = ?", (user_id,))
+            cursor.execute("UPDATE users SET last_bonus_time = ? WHERE id = ?", (current_time.strftime("%Y-%m-%d %H:%M:%S"), user_id))
+            conn.commit()
+            update.message.reply_text("Ви отримали ретро бонус 100 DEXP!")
+        else:
+            update.message.reply_text("Ви вже отримували бонус сьогодні. Спробуйте пізніше.")
     else:
-        await update.callback_query.edit_message_text("You have no friends yet. Add some!")
+        update.message.reply_text("Щось пішло не так. Спробуйте ще раз.")
 
-# Додати друга
-async def add_friend(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    friend_id = int(update.message.text.split()[1])  # очікуємо формат: /addfriend <ID>
-    if friend_id not in users_data:
-        await update.message.reply_text("This user does not exist.")
-    else:
-        users_data[user_id]['friends'].add(friend_id)
-        users_data[friend_id]['friends'].add(user_id)  # двостороннє додавання
-        await update.message.reply_text(f"User {friend_id} has been added to your friends list.")
+def help_command(update: Update, context: CallbackContext) -> None:
+    help_text = """
+    Доступні команди:
+    /start - Почати використання бота.
+    /leaderboard - Переглянути лідерів.
+    /retrobonus - Отримати ретро бонус.
+    /vip - Оформити VIP статус.
+    /addfriend <ID друга> - Додати друга до списку.
+    """
+    update.message.reply_text(help_text)
 
-# Основна функція
-async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(balance, pattern="balance"))
-    app.add_handler(CallbackQueryHandler(promo, pattern="promo"))
-    app.add_handler(CallbackQueryHandler(leaderboard, pattern="leaderboard"))
-    app.add_handler(CallbackQueryHandler(vip, pattern="vip"))
-    app.add_handler(CallbackQueryHandler(friends, pattern="friends"))
-    app.add_handler(CommandHandler("addfriend", add_friend))
-    await app.run_polling()
+def main():
+    # Вказуємо токен вашого бота
+    TOKEN = '8008430295:AAFATrn-vbY1365zwKEYA_CTW5lxRfhdAG8'
+    
+    updater = Updater(TOKEN, use_context=True)
 
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    dp = updater.dispatcher
+
+    # Додаємо обробники команд
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("leaderboard", leaderboard))
+    dp.add_handler(CommandHandler("retrobonus", retro_bonus))
+    dp.add_handler(CommandHandler("vip", vip))
+    dp.add_handler(CommandHandler("addfriend", add_friend))
+    dp.add_handler(CommandHandler("help", help_command))
+
+    # Запускаємо бота
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
